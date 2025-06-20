@@ -14,10 +14,84 @@ pipeline{
             }
         }
         stage('clone the github'){
-            steps(
-              git 'https://github.com/shivagu/DevOps-Project-Zomato-Kastro.git'
-            )
+            steps{
+               git 'https://github.com/shivagu/DevOps-Project-Zomato-Kastro.git'
+            }
+        }
+        stage('sonar qube scanner'){
+            steps{
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomato \
+                    -Dsonar.projectKey=zomato '''
+            }
+            }
+        }
+        stage('quality gates'){
+            steps{
+                 waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+            }
+        }
+        stage('npm install'){
+            steps{
+                sh "npm install"
+            }
+        }
+        stage('OWASP FS SCAN') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit -n', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+    }
+    }
+        stage ("Trivy File Scan") {
+            steps {
+                sh "trivy fs . > trivy.txt"
+            }
+        }
+        stage ("Build Docker Image") {
+            steps {
+                sh "docker build -t zomato ."
+            }
+        }
+        stage ('Tag and push the image'){
+            steps{
+                script{
+                    withDockerRegistry(credentialsId: 'docker'){
+                       sh "docker tag zomato shivareddy889/zomato:latest"
+                       sh "docker push shivareddy889/zomato:latest"
+              }
+                }
+            }
+        }
+         stage ("Deploy to Container") {
+            steps {
+                sh 'docker run -d --name zomato -p 3000:3000 shivareddy889/zomato:latest'
+            }
+        }
+    }
+    post {
+    always {
+        emailext attachLog: true,
+            subject: "'${currentBuild.result}'",
+            body: """
+                <html>
+                <body>
+                    <div style="background-color: #FFA07A; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Project: ${env.JOB_NAME}</p>
+                    </div>
+                    <div style="background-color: #90EE90; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Build Number: ${env.BUILD_NUMBER}</p>
+                    </div>
+                    <div style="background-color: #87CEEB; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">URL: ${env.BUILD_URL}</p>
+                    </div>
+                </body>
+                </html>
+            """,
+            to: 'gurralashivareddy123@gmail.com',
+            mimeType: 'text/html',
+            attachmentsPattern: 'trivy.txt'
         }
     }
 }
+    
     
