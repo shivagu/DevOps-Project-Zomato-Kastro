@@ -93,5 +93,9 @@ pipeline{
         }
     }
 }
+eksctl create cluster --name=shivacluster \
+                      --region=ap-south-1 \
+                      --zones=ap-south-1a,ap-south-1b \
+                      --without-nodegroup 
     
-    
+eksctl create nodegroup --cluster=shivacluster --region=ap-south-1 --name=demo-ng-public1 --node-type=t3.medium --nodes=2 --nodes-min=2 --nodes-max=4 --node-volume-size=20 --ssh-access --ssh-public-key=ansible --managed --asg-access --external-dns-access --full-ecr-access --appmesh-access --alb-ingress-access
